@@ -1,6 +1,6 @@
 export interface Patient {
-  id: string;
-  gender: 'MALE' | 'FEMALE';
+  id: number;
+  gender: string;
   birthdate: string;
   age: number;
   bmi: number;
@@ -8,6 +8,13 @@ export interface Patient {
   dia_bp: number;
   heart_rate: number;
   bp_category: string;
+}
+
+export interface PaginatedResponse<T> {
+  results: T[];
+  next: string | null;
+  previous: string | null;
+  count: number;
 }
 
 export interface Condition {
@@ -24,18 +31,33 @@ export interface Observation {
   value: string | number;
 }
 
-export interface PaginatedResponse<T> {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: T[];
-}
-
 export interface ConditionPrevalence {
   location: string;
   prevalence_count: number;
 }
 
+interface ApiResponse<T> {
+  results: T[];
+  count: number;
+}
+// BMI Data
+interface BMIData {
+  location: string;
+  avg_bmi: number;
+}
+
+// BP Data
+interface BPData {
+  range: string;
+  count: number;
+}
+
+// Or alternatively for BP
+interface BPData {
+  systolic: number;
+  diastolic: number;
+  count: number;
+}
 export interface LocationBMI {
   location: string;
   average_bmi: number;

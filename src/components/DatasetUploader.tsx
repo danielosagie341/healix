@@ -12,14 +12,43 @@ interface DatasetUploaderProps {
   onUploadSuccess?: (type: DatasetType) => void;
 }
 
+interface ObservationRow {
+  DATE: string;
+  PATIENT: string;
+  DESCRIPTION: string;
+  VALUE: string;
+}
+
 export default function DatasetUploader({ onUploadSuccess }: DatasetUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const isValidDate = (dateStr: string): boolean => {
+    // Check common date formats
+    const dateFormats = [
+      // ISO format
+      /^\d{4}-\d{2}-\d{2}$/,
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z?$/,
+      // US format
+      /^\d{2}\/\d{2}\/\d{4}$/,
+      // European format
+      /^\d{2}-\d{2}-\d{4}$/,
+      /^\d{2}\.\d{2}\.\d{4}$/
+    ];
+
+    // Check if the string matches any of the formats
+    const matchesFormat = dateFormats.some(format => format.test(dateStr));
+    if (!matchesFormat) return false;
+
+    // Try parsing the date
+    const date = new Date(dateStr);
+    return date instanceof Date && !isNaN(date.getTime());
+  };
+
   const validateObservationsCSV = (file: File): Promise<boolean> => {
     return new Promise((resolve, reject) => {
-      Papa.parse(file, {
+      Papa.parse<ObservationRow>(file, {
         header: true,
         skipEmptyLines: true,
         complete: function(results) {
@@ -36,6 +65,19 @@ export default function DatasetUploader({ onUploadSuccess }: DatasetUploaderProp
           if (missingColumns.length > 0) {
             reject(new Error(`Missing required columns: ${missingColumns.join(', ')}`));
             return;
+          }
+
+          // Validate date format for each row
+          for (let i = 0; i < results.data.length; i++) {
+            const row = results.data[i];
+            if (!isValidDate(row.DATE)) {
+              reject(new Error(
+                `Invalid date format in row ${i + 1}: "${row.DATE}". ` +
+                'Accepted formats: YYYY-MM-DD, MM/DD/YYYY, DD-MM-YYYY, ' +
+                'DD.MM.YYYY, or ISO datetime'
+              ));
+              return;
+            }
           }
 
           resolve(true);
@@ -74,7 +116,6 @@ export default function DatasetUploader({ onUploadSuccess }: DatasetUploaderProp
       const data: UploadResponse = await response.json();
       setSuccess(`Successfully uploaded ${type} dataset: ${data.status}`);
       
-      // Trigger refresh after successful upload
       if (onUploadSuccess) {
         onUploadSuccess(type);
       }
@@ -109,7 +150,15 @@ export default function DatasetUploader({ onUploadSuccess }: DatasetUploaderProp
           
           {type === 'observations' && (
             <div className="text-sm text-gray-600 mb-2">
-              Required columns: DATE, PATIENT, DESCRIPTION, VALUE
+              <div>Required columns: DATE, PATIENT, DESCRIPTION, VALUE</div>
+              <div>Accepted date formats:</div>
+              <ul className="list-disc ml-4">
+                <li>YYYY-MM-DD (e.g., 2024-01-28)</li>
+                <li>MM/DD/YYYY (e.g., 01/28/2024)</li>
+                <li>DD-MM-YYYY (e.g., 28-01-2024)</li>
+                <li>DD.MM.YYYY (e.g., 28.01.2024)</li>
+                <li>ISO datetime (e.g., 2024-01-28T15:30:00Z)</li>
+              </ul>
             </div>
           )}
           

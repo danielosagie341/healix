@@ -3,35 +3,71 @@ import { useState, useEffect } from 'react';
 import { Patient, PaginatedResponse } from '../types';
 import { api } from '@/api';
 
-export default function PatientsTable() {
+interface PatientsTableProps {
+  refresh?: boolean;
+  onRefreshComplete?: () => void;
+}
+
+export default function PatientsTable({ refresh, onRefreshComplete }: PatientsTableProps) {
   const [patients, setPatients] = useState<PaginatedResponse<Patient> | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        setLoading(true);
-        const data = await api.getPatients(page);
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getPatients(page);
+      // Ensure data has the expected structure
+      if (data && Array.isArray(data.results)) {
         setPatients(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch patients');
-      } finally {
-        setLoading(false);
+      } else {
+        throw new Error('Invalid data format received');
       }
-    };
+      if (onRefreshComplete) {
+        onRefreshComplete();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch patients');
+      setPatients(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchPatients();
   }, [page]);
 
-  if (loading) return <div className="text-center p-4">Loading...</div>;
-  if (error) return <div className="text-red-500 p-4">{error}</div>;
-  if (!patients) return null;
+  useEffect(() => {
+    if (refresh) {
+      fetchPatients();
+    }
+  }, [refresh]);
+
+  if (loading) return (
+    <div className="flex justify-center items-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="text-red-600 p-4 text-center">
+      {error}
+    </div>
+  );
+
+  if (!patients || !patients.results || !Array.isArray(patients.results) || patients.results.length === 0) {
+    return (
+      <div className="text-gray-500 p-4 text-center">
+        No patients data available
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full bg-white">
+      <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
@@ -42,7 +78,7 @@ export default function PatientsTable() {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {patients.results && patients.results.map((patient) => (
+          {patients.results.map((patient) => (
             <tr key={patient.id}>
               <td className="px-6 py-4 whitespace-nowrap">{patient.id}</td>
               <td className="px-6 py-4 whitespace-nowrap">{patient.gender}</td>
@@ -58,15 +94,15 @@ export default function PatientsTable() {
         <button
           onClick={() => setPage(p => Math.max(1, p - 1))}
           disabled={!patients.previous}
-          className="px-4 py-2 border rounded-md disabled:opacity-50"
+          className="px-4 py-2 border rounded-md disabled:opacity-50 hover:bg-gray-100"
         >
           Previous
         </button>
-        <span>Page {page}</span>
+        <span className="text-sm text-gray-700">Page {page}</span>
         <button
           onClick={() => setPage(p => p + 1)}
           disabled={!patients.next}
-          className="px-4 py-2 border rounded-md disabled:opacity-50"
+          className="px-4 py-2 border rounded-md disabled:opacity-50 hover:bg-gray-100"
         >
           Next
         </button>
